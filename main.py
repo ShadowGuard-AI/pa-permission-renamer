@@ -4,8 +4,9 @@ import argparse
 import csv
 import logging
 import os
+import stat
 import sys
-from typing import Dict
+from typing import Dict, Tuple
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -15,7 +16,7 @@ def setup_argparse():
     Sets up the argument parser for the command-line interface.
     """
     parser = argparse.ArgumentParser(
-        description="Renames permissions based on a mapping file.",
+        description="Simulation only: this tool renames nothing. It walks a directory, reads each entry's real permission string, and reports which entries would be renamed under a mapping file. No file, name, or permission is ever changed.",
         epilog="Example usage: pa-permission-renamer -m mapping.csv -d /path/to/directory"
     )
 
@@ -30,9 +31,9 @@ def setup_argparse():
         "-d", "--directory",
         dest="directory",
         required=True,
-        help="The root directory where permission renaming should occur. CAUTION:  This tool is a placeholder.  Actual permission renaming is NOT implemented in this example and should not be run on sensitive file systems without proper audit and modification."
+        help="The root directory to simulate permission renaming over. This tool is a simulation only: actual permission renaming is NOT implemented, and nothing in this directory will be changed."
     )
-    
+
     parser.add_argument(
         "-v", "--verbose",
         action="store_true",
@@ -81,47 +82,63 @@ def load_mapping(mapping_file: str) -> Dict[str, str]:
 
     return mapping
 
-def process_directory(directory: str, mapping: Dict[str, str]) -> None:
+def permission_string(path: str) -> str:
+    """
+    Returns an entry's real permission string, in the nine character
+    form used by mapping files (for example 'rw-r-----' for mode 0o640
+    and 'rwxr-xr-x' for mode 0o755).
+    """
+    return stat.filemode(os.stat(path).st_mode)[1:]
+
+def process_directory(directory: str, mapping: Dict[str, str]) -> Tuple[int, int]:
     """
     Processes the specified directory, simulating permission renaming.
-    WARNING: This function DOES NOT actually rename permissions.  It only simulates the process.
-             Modifications are needed to apply permission changes, which requires careful implementation.
+    This function does NOT rename anything and changes nothing on disk.
+    It only reads each entry's real mode and reports what the mapping
+    would do.
 
     Args:
         directory: The directory to process.
         mapping: The permission mapping dictionary.
 
+    Returns:
+        A pair: the number of entries examined, and the number of
+        entries whose real permission string matched the mapping.
+
     Raises:
-        OSError: If the directory does not exist or is inaccessible.
+        OSError: If the directory does not exist or is not accessible.
     """
     if not os.path.isdir(directory):
         raise OSError(f"Directory does not exist or is not accessible: {directory}")
 
-    logging.info(f"Processing directory: {directory}")
+    logging.info(f"Simulating over directory: {directory} (no changes will be made)")
 
-    # Simulate processing each file and directory
-    for root, _, files in os.walk(directory):  # Corrected to use os.walk
-        for name in files + _:  # Treat dirs as files
+    examined = 0
+    matched = 0
+    for root, dirs, files in os.walk(directory):
+        for name in dirs + files:
             filepath = os.path.join(root, name)
-            # Here you would normally get current permissions
-            current_permissions = "rwxr-xr-x"  # Placeholder
+            try:
+                current_permissions = permission_string(filepath)
+            except OSError as e:
+                logging.warning(f"Skipping {filepath}: could not read its mode: {e}")
+                continue
+            examined += 1
             logging.debug(f"Examining {filepath} with permissions: {current_permissions}")
-            
-            # Simulate renaming
+
+            # Simulate renaming only. Nothing is renamed or changed.
             if current_permissions in mapping:
+                matched += 1
                 new_permissions = mapping[current_permissions]
                 logging.info(f"Simulating permission change for {filepath} from {current_permissions} to {new_permissions}")
-                # Add actual permission renaming code here.
-                # NOTE: This requires operating system-specific calls like os.chmod on POSIX systems
-                # or appropriate Windows API calls.  Ensure proper error handling and security checks.
             else:
                 logging.debug(f"No mapping found for permission {current_permissions} on {filepath}")
-    logging.info("Directory processed.")
+    return examined, matched
 
 
 def main():
     """
-    Main function to execute the permission renamer.
+    Main function to execute the permission renamer simulation.
     """
     try:
         args = setup_argparse()
@@ -131,9 +148,21 @@ def main():
             logging.debug("Verbose logging enabled.")
 
         mapping = load_mapping(args.mapping_file)
-        logging.info(f"Loaded mapping from {args.mapping_file}: {mapping}")
+        if not mapping:
+            logging.error(f"Mapping file {args.mapping_file} holds no mappings; nothing was simulated.")
+            sys.exit(1)
+        logging.info(f"Loaded mapping from {args.mapping_file}: {len(mapping)} entries")
 
-        process_directory(args.directory, mapping)
+        examined, matched = process_directory(args.directory, mapping)
+
+        if examined == 0:
+            logging.error(f"Directory {args.directory} holds no entries; nothing was simulated.")
+            sys.exit(1)
+        if matched == 0:
+            logging.error("No entry's real permission string matched the mapping; nothing was simulated.")
+            sys.exit(1)
+
+        logging.info(f"Simulation complete: {examined} entries examined, {matched} would change. No permissions were renamed.")
 
     except FileNotFoundError as e:
         logging.error(f"Error: {e}")
