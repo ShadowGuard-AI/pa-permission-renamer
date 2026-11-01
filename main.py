@@ -63,6 +63,10 @@ def load_mapping(mapping_file: str) -> Dict[str, str]:
     mapping: Dict[str, str] = {}
     try:
         with open(mapping_file, 'r', newline='') as csvfile:
+            # There is no header handling. A mapping file saved with a
+            # header row loads that row as a real mapping from the string
+            # old_permission to new_permission, harmless only because no
+            # file mode ever spells either word.
             reader = csv.reader(csvfile)
             for row in reader:
                 if len(row) != 2:
@@ -82,6 +86,10 @@ def load_mapping(mapping_file: str) -> Dict[str, str]:
 
     return mapping
 
+# os.stat follows symlinks, so a link is reported with the mode of the
+# thing it points at, not the link itself. The walk also lists a
+# symlinked directory both as an entry here and again as a root when
+# os.walk descends into it.
 def permission_string(path: str) -> str:
     """
     Returns an entry's real permission string, in the nine character
@@ -158,6 +166,10 @@ def main():
         if examined == 0:
             logging.error(f"Directory {args.directory} holds no entries; nothing was simulated.")
             sys.exit(1)
+        # Zero matches is an error exit even though the simulation ran
+        # to completion. A mapping written against the wrong permission
+        # format looks exactly like this, and I would rather fail loudly
+        # than print a clean looking nothing happened.
         if matched == 0:
             logging.error("No entry's real permission string matched the mapping; nothing was simulated.")
             sys.exit(1)
