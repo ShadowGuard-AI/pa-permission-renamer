@@ -2,15 +2,15 @@
 Simulation only: this tool renames nothing. It is a placeholder that simulates permission renaming: it walks a directory, reads each entry's real permission string, and reports which entries would be renamed under a CSV mapping file. No file, name, or permission is ever changed by any run.
 
 ## Install
-`git clone https://github.com/ShadowStrikeHQ/pa-permission-renamer`
+`git clone https://github.com/ShadowGuard-AI/pa-permission-renamer`
 
 ## Usage
-`./pa-permission-renamer [params]`
+`python3 main.py -m mapping.csv -d /path/to/directory`
 
 ## Parameters
 - `-h`: Show help message and exit
-- `-m`: Path to the CSV mapping file (old_permission,new_permission). Keys are permission strings in the nine character form, for example `rwxr-xr-x` or `rw-r-----`.
-- `-d`: The root directory to simulate permission renaming over. Simulation only: nothing in this directory will be changed.
+- `-m`: (required) Path to the CSV mapping file (old_permission,new_permission). Keys are permission strings in the nine character form, for example `rwxr-xr-x` or `rw-r-----`.
+- `-d`: (required) The root directory to simulate permission renaming over. Simulation only: nothing in this directory will be changed.
 - `-v`: Enable verbose logging.
 
 ## Behaviour notes
@@ -18,4 +18,4 @@ Simulation only: this tool renames nothing. It is a placeholder that simulates p
 - An empty mapping file, an empty directory, and a run in which no entry matches the mapping all end with a plain nothing was simulated message and exit non-zero. A run that simulates at least one match ends with a simulation complete line that states how many entries would change and that no permissions were renamed.
 
 ## License
-Copyright (c) ShadowStrikeHQ
+MIT License. See LICENSE.
